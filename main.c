@@ -16,6 +16,7 @@ int server_open( int* );
 
 //Database callbacks:
 static int server_search_callback(void*, int, char**, char**);
+static int server_open_callback(void*, int, char**, char**);
 
 //Database functions:
 int db_connect();
@@ -73,8 +74,9 @@ int main( int argc, char *argv[] )
             show_help();
             return 0;
         }
-        printf("Searching for %s:\n", argv[2]);
+        printf("\n\tSearching for %s:\n\t-----------------------------------------------------------\n", argv[2]);
         int res = server_search( argv[2] );
+        printf("\t-----------------------------------------------------------\n\n");
         if( res == 0 )
             return 1;
     }
@@ -127,6 +129,9 @@ static int server_open_callback(void *NotUsed, int argc, char **argv, char **azC
     if( argc > 0 && argv[4] != NULL )
     {
         if( strcmp(argv[4],"sftp") == 0 )
+        {
+            
+        }
     }
     return 0;
 }
@@ -221,7 +226,7 @@ int server_search( char *searchstring )
  */
 static int server_search_callback(void *NotUsed, int argc, char **argv, char **azColName)
 {
-    printf("%s\t %s\t %s\t %s\n", argv[0],argv[1],argv[2],argv[3],argv[4]);
+    printf("\t%s. %s, %s, %s, %s\n", argv[0],argv[1],argv[2],argv[3],argv[4]);
     return 0;
 }
 
