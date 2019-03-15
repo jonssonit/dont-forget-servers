@@ -1,6 +1,10 @@
 # Small C commandline for storing server information
 Save, remove, search servers in a database file using SQLite.
 
+### COMPILE
+with:
+	gcc main.c -o srvl -lsql
+
 ### TODO
 	[ ] Finish the open functions
 	[ ] New table where config is stored for how each protocol should be executed 
