@@ -2,7 +2,6 @@
 Save, remove, search servers in a database file using SQLite.
 
 ### COMPILE
-with:
 	gcc main.c -o srvl -lsql
 
 ### TODO
@@ -18,5 +17,6 @@ with:
 	Add:          srvl add <name> <host> <port> <protocol>
 	Remove:       srvl remove <id>
 	Search:       srvl search <search string>
+	List all:     server list
 	Open by id:   srvl o <id>
 	Open by name: srvl O <name>
