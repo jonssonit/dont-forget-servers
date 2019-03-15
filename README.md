@@ -17,6 +17,6 @@ Save, remove, search servers in a database file using SQLite.
 	Add:          srvl add <name> <host> <port> <protocol>
 	Remove:       srvl remove <id>
 	Search:       srvl search <search string>
-	List all:     server list
+	List all:     srvl list
 	Open by id:   srvl o <id>
 	Open by name: srvl O <name>
