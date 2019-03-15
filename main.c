@@ -9,7 +9,7 @@ int show_help();
 int yn_question( char* );
 
 //Action functions:
-int server_add( char*, char*, int*, char* );
+int server_add( char*, char*, int*, char*, char* );
 int server_remove( int* );
 int server_search( char* );
 int server_open( int* );
@@ -51,16 +51,16 @@ int main( int argc, char *argv[] )
     //Add row:
     if( strcmp(argv[1],"add") == 0 )
     {
-        if( argc != 6 )
+        if( argc != 7 )
         {
             printf("Error: Invalid argument count\n");
             show_help();
             return 0;
         }
         //name, host, port, protocol
-        printf("Add %s %s %s %s\n", argv[2], argv[3], argv[4], argv[5]);
+        printf("Add %s %s %s %s %s\n", argv[2], argv[3], argv[4], argv[5], argv[6]);
         int port = atoi(argv[4]);
-        int res = server_add( argv[2], argv[3], &port, argv[5] );
+        int res = server_add( argv[2], argv[3], &port, argv[5], argv[6] );
         if( res == 0 )
             return 1;
     }
@@ -74,9 +74,10 @@ int main( int argc, char *argv[] )
             show_help();
             return 0;
         }
-        printf("\n\tSearching for %s:\n\t-----------------------------------------------------------\n", argv[2]);
+        printf("\n\tSearching for %s:\n\t----------------------------"
+               "-----------------------\n", argv[2]);
         int res = server_search( argv[2] );
-        printf("\t-----------------------------------------------------------\n\n");
+        printf("\t---------------------------------------------------\n\n");
         if( res == 0 )
             return 1;
     }
@@ -98,15 +99,26 @@ int main( int argc, char *argv[] )
 
     return 0;
 }
+
+
 /*
  *  Open server by server id
+ * ---------------------------------------------------------------------------
  */
 int server_open( int *id )
 {
     db_connect();
     char *err_msg = 0;
-    char *query = sqlite3_mprintf("SELECT id, name, host, port, protocol FROM srvl WHERE id='%q' LIMIT 0,1", id);
-
+    char *query = sqlite3_mprintf(
+"SELECT id, CASE "
+"WHEN protocol='ssh' THEN 'ssh ' || host || ' -p ' || port || ' -l ' || username "
+"WHEN protocol='sftp' THEN 'nautilus sftp://' || username || '@' || host || ':' || port "
+"WHEN protocol='https' THEN 'xdg-open https://' || host || ':' || port "
+"WHEN protocol='http' THEN 'xdg-open http://' || host || ':' || port "
+"END AS execstring "
+"FROM srvl WHERE id='%d' "
+"LIMIT 0,1", *id);
+	
     int rc = sqlite3_exec(db, query, server_open_callback, 0, &err_msg);
     if (rc != SQLITE_OK )
     {
@@ -118,23 +130,23 @@ int server_open( int *id )
     db_close();
     return 1;
 }
+
+
 /*
  *  Open callback
  *  sqlite calls this function when the open-query is done
  *  NOTE: returns 0 on success!
+ * ---------------------------------------------------------------------------
  */
-static int server_open_callback(void *NotUsed, int argc, char **argv, char **azColName)
+static int server_open_callback(void *NotUsed, int argc, 
+                                char **argv, char **azColName)
 {
-    //ARGV: id, name, host, port, protocol
-    if( argc > 0 && argv[4] != NULL )
-    {
-        if( strcmp(argv[4],"sftp") == 0 )
-        {
-            
-        }
-    }
+	printf("Open: %s\n",argv[1]);
+    system(argv[1]);
     return 0;
 }
+
+
 /*
  *  Add server to database
  *  returns 1 on success
@@ -143,12 +155,17 @@ static int server_open_callback(void *NotUsed, int argc, char **argv, char **azC
  *  @host Ip or domain
  *  @port Server port
  *  @protocol Protocol to be used when opening with function server_open()
+ * ---------------------------------------------------------------------------
  */
-int server_add( char *name, char *host, int *port, char *protocol )
+int server_add( char *name, char *host, int *port, 
+               char *protocol, char* username )
 {
     db_connect();
     char *err_msg = 0;
-    char *query = sqlite3_mprintf("INSERT INTO srvl('name','host','port','protocol') VALUES('%q', '%q', '%d', '%q')", name, host, *port, protocol);
+    char *query = sqlite3_mprintf("INSERT INTO srvl('name','host','port',"
+                                  "'protocol','username') "
+                                  "VALUES('%q', '%q', '%d', '%q', '%q')", 
+                                  name, host, *port, protocol, username);
     int rc = sqlite3_exec(db, query, 0, 0, &err_msg);
     if (rc != SQLITE_OK )
     {
@@ -161,11 +178,13 @@ int server_add( char *name, char *host, int *port, char *protocol )
     return 1;
 }
 
+
 /*
  *  Remove column
  *  returns 1 on success
  *  returns 0 on fail
  *  id the id of the column to be removed
+ * ---------------------------------------------------------------------------
  */
 int server_remove( int *id )
 {
@@ -192,20 +211,25 @@ int server_remove( int *id )
     return 1;
 }
 
+
 /*
  *  Search database by a string and display result
+ * ---------------------------------------------------------------------------
  */
 int server_search( char *searchstring )
 {
     db_connect();
     char *err_msg = 0;
-    char *query = sqlite3_mprintf("SELECT id, name, host, port, protocol " 
+    char *query = sqlite3_mprintf("SELECT "
+    "id, name, host, port, protocol, username " 
     "FROM srvl WHERE "
     "name LIKE '%%%q%%' OR "
     "host LIKE '%%%q%%' OR "
     "port LIKE '%%%q%%' OR "
-    "protocol LIKE '%%%q%%' "
-    "ORDER BY id ASC", searchstring, searchstring, searchstring, searchstring);
+    "protocol LIKE '%%%q%%' OR "
+    "username LIKE '%%%q%%' "
+    "ORDER BY id ASC", searchstring, searchstring, searchstring, 
+                                  searchstring, searchstring);
 
     int rc = sqlite3_exec(db, query, server_search_callback, 0, &err_msg);
     if (rc != SQLITE_OK )
@@ -219,26 +243,33 @@ int server_search( char *searchstring )
     return 1;
 }
 
+
 /*
  *  Search callback
  *  sqlite calls this function when the search-query is done
  *  NOTE: returns 0 on success!
+ * ---------------------------------------------------------------------------
  */
-static int server_search_callback(void *NotUsed, int argc, char **argv, char **azColName)
+static int server_search_callback(void *NotUsed, int argc, 
+                                  char **argv, char **azColName)
 {
-    printf("\t%s. %s, %s, %s, %s\n", argv[0],argv[1],argv[2],argv[3],argv[4]);
+    printf("\t%s. %s, %s, %s, %s, %s\n", 
+           argv[0],argv[1],argv[2],argv[3],argv[4],argv[5]);
     return 0;
 }
+
 
 /*
  *  Connect to databasefile:
  *  returns 1 on success
  *  returns 0 on fail
+ * ---------------------------------------------------------------------------
  */
 int db_connect()
 {
     //Connect to datbase and create one if it does not exist:
-    int rc = sqlite3_open_v2("srvl.db", &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
+    int rc = sqlite3_open_v2("srvl.db", &db, 
+                             SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
     if (rc != SQLITE_OK)
     {
         fprintf(stderr, "Cannot open database: %s\n", sqlite3_errmsg(db));
@@ -248,11 +279,13 @@ int db_connect()
     //Create a table if it doesnt exist:
     char *err_msg = 0;
     char *query = sqlite3_mprintf("CREATE TABLE IF NOT EXISTS `srvl` ("
-                                "`id`	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,"
+                                "`id`	INTEGER NOT NULL PRIMARY KEY "
+                                " AUTOINCREMENT UNIQUE,"
                                 "`name`	TEXT,"
                                 "`host`	TEXT,"
                                 "`port`	INTEGER,"
-                                "`protocol`	TEXT);");
+                                "`protocol`	TEXT,"
+                                "`username`	TEXT);");
     int rc2 = sqlite3_exec(db, query, 0, 0, &err_msg);
     if (rc2 != SQLITE_OK )
     {
@@ -265,8 +298,10 @@ int db_connect()
     return 1;
 }
 
+
 /*
  * Close connection if db is not null
+ * ---------------------------------------------------------------------------
  */
 int db_close()
 {
@@ -274,11 +309,13 @@ int db_close()
         sqlite3_close(db);
 }
 
+
 /*
  *  Ask a question
  *  return 1 on YES
  *  return 0 on NO
  *  *question is the question to be asked
+ * ---------------------------------------------------------------------------
  */
 int yn_question( char *question )
 {
@@ -301,22 +338,24 @@ int yn_question( char *question )
     return result;
 }
 
+
 /*
  *  Display help:
+ * ---------------------------------------------------------------------------
  */
  int show_help()
  {
-     printf("\n====================================================================\n");
+     printf("\n============================================================\n");
      printf("SERVER HELP\n");
-     printf("====================================================================\n");
-     printf("Add:\t\t server add <name> <host> <port> <protocol>\n");
-     printf("--------------------------------------------------------------------\n");
+     printf("============================================================\n");
+     printf("Add:\t\t server add <name> <host> <port> <protocol> <username>\n");
+     printf("------------------------------------------------------------\n");
      printf("Remove:\t\t server remove <id>\n");
-     printf("--------------------------------------------------------------------\n");
+     printf("------------------------------------------------------------\n");
      printf("Search:\t\t server search <search string>\n");
-     printf("--------------------------------------------------------------------\n");
+     printf("------------------------------------------------------------\n");
      printf("Open by id:\t server o <id>\n");
-     printf("--------------------------------------------------------------------\n");
+     printf("------------------------------------------------------------\n");
      printf("Open by name:\t server O <name>\n");
-     printf("--------------------------------------------------------------------\n\n");
+     printf("------------------------------------------------------------\n\n");
  }
