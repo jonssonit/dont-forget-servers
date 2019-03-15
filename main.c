@@ -13,10 +13,12 @@ int server_add( char*, char*, int*, char*, char* );
 int server_remove( int* );
 int server_search( char* );
 int server_open( int* );
+int server_list_all();
 
 //Database callbacks:
 static int server_search_callback(void*, int, char**, char**);
 static int server_open_callback(void*, int, char**, char**);
+static int server_list_all_callback(void*, int, char**, char**);
 
 //Database functions:
 int db_connect();
@@ -26,7 +28,8 @@ sqlite3 *db;
 
 int main( int argc, char *argv[] )
 {
-    if( argc < 3 )
+    int validArg=0;
+    if( argc < 2 )
     {
         show_help();
         return 0;
@@ -35,6 +38,7 @@ int main( int argc, char *argv[] )
     //Remove row:
     if( strcmp(argv[1],"remove") == 0 )
     {
+        validArg = 1;
         if( argc != 3 )
         {
             printf("Error: Invalid argument count\n");
@@ -51,6 +55,7 @@ int main( int argc, char *argv[] )
     //Add row:
     if( strcmp(argv[1],"add") == 0 )
     {
+        validArg = 1;
         if( argc != 7 )
         {
             printf("Error: Invalid argument count\n");
@@ -68,16 +73,17 @@ int main( int argc, char *argv[] )
     //Search:
     if( strcmp(argv[1],"search") == 0 )
     {
+        validArg = 1;
         if( argc != 3 )
         {
             printf("Error: Invalid argument count\n");
             show_help();
             return 0;
         }
-        printf("\n\tSearching for %s:\n\t----------------------------"
+        printf("\n\tSearching for %s:\n\t---------------------------------"
                "-----------------------\n", argv[2]);
         int res = server_search( argv[2] );
-        printf("\t---------------------------------------------------\n\n");
+        printf("\t--------------------------------------------------------\n\n");
         if( res == 0 )
             return 1;
     }
@@ -85,6 +91,7 @@ int main( int argc, char *argv[] )
     //Open by Id:
     if( strcmp(argv[1],"o") == 0 )
     {
+        validArg = 1;
         if( argc != 3 )
         {
             printf("Error: Invalid argument count\n");
@@ -95,6 +102,31 @@ int main( int argc, char *argv[] )
         int res = server_open( &id );
         if( res == 0 )
             return 1;
+    }
+
+    //List all servers:
+    if( strcmp(argv[1],"list") == 0 )
+    {
+        validArg = 1;
+        if( argc != 2 )
+        {
+            printf("Error: Invalid argument count\n");
+            show_help();
+            return 0;
+        }
+        printf("\n\tAll servers:\n");
+        printf("\t--------------------------------------------------------\n");
+        int res = server_list_all();
+        printf("\t--------------------------------------------------------\n\n");
+        if( res == 0 )
+            return 1;
+    }
+
+    //Check if user has a valid argument
+    //If not show the help:
+    if( validArg == 0 )
+    {
+        show_help();
     }
 
     return 0;
@@ -258,6 +290,44 @@ static int server_search_callback(void *NotUsed, int argc,
     return 0;
 }
 
+/*
+ *  List all servers in the database:
+ * ---------------------------------------------------------------------------
+ */
+int server_list_all( )
+{
+    db_connect();
+    char *err_msg = 0;
+    char *query = sqlite3_mprintf("SELECT "
+    "id, name, host, port, protocol, username FROM srvl ORDER BY id ASC");
+
+    int rc = sqlite3_exec(db, query, server_list_all_callback, 0, &err_msg);
+    if (rc != SQLITE_OK )
+    {
+        fprintf(stderr, "SQL error: %s\n", err_msg);
+        sqlite3_free(err_msg);
+        sqlite3_close(db);
+        return 0;
+    }
+    db_close();
+    return 1;
+}
+
+
+/*
+ *  List all servers - Callback
+ *  sqlite calls this function when the list query is done
+ *  NOTE: returns 0 on success!
+ * ---------------------------------------------------------------------------
+ */
+static int server_list_all_callback(void *NotUsed, int argc, 
+                                  char **argv, char **azColName)
+{
+    printf("\t%s. %s, %s, %s, %s, %s\n", 
+           argv[0],argv[1],argv[2],argv[3],argv[4],argv[5]);
+    return 0;
+}
+
 
 /*
  *  Connect to databasefile:
@@ -353,6 +423,8 @@ int yn_question( char *question )
      printf("Remove:\t\t server remove <id>\n");
      printf("------------------------------------------------------------\n");
      printf("Search:\t\t server search <search string>\n");
+     printf("------------------------------------------------------------\n");
+     printf("Lista all:\t server list\n");
      printf("------------------------------------------------------------\n");
      printf("Open by id:\t server o <id>\n");
      printf("------------------------------------------------------------\n");
