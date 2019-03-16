@@ -1,8 +1,17 @@
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE 1
+#endif
+
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include <sqlite3.h>
+
+
+#define PERM 0755
 
 //Custom functions:
 int show_help();
@@ -295,8 +304,6 @@ int server_list_all( )
 }
 
 
-
-
 /*
  * =========================================================================== 
  * SQL CALLBACKS:
@@ -360,8 +367,42 @@ static int server_list_all_callback(void *NotUsed, int argc,
  */
 int db_connect()
 {
+
+	//Create folder in home:
+	char *home_path = getenv("HOME");
+	char *srvl_path = NULL;
+	const char db_filename[] = "/srvl.db";
+	const char srvl_foldername[] = "/.srvl";
+	char *full_path = NULL;
+
+	//Allocate memory for the path:
+	int srvl_path_size = strlen( home_path ) + strlen( srvl_foldername ) + 1;
+	srvl_path = (char*)malloc( srvl_path_size );
+	if( srvl_path == NULL )
+	{
+		printf("Error: Could not allocate memory for srvl folder path.\n");
+		return 0;
+	}
+	//Concat home_path with the hidden folder .srvl
+	snprintf( srvl_path, srvl_path_size, "%s%s", home_path, srvl_foldername );
+	
+	
+	//Allocate memory for the full path:
+	int full_path_size = strlen( srvl_path ) + strlen( db_filename ) + 1;
+	full_path = (char*)malloc( full_path_size );
+	if( full_path == NULL )
+	{
+		printf("Error: Could not allocate memory for database path.\n");
+		return 0;
+	}
+	//Put path and filename togheter to get the full path:
+	snprintf( full_path, full_path_size, "%s%s", srvl_path, db_filename );
+
+	//Make the directory
+	mkdir(srvl_path, PERM );
+	
     //Connect to datbase and create one if it does not exist:
-    int rc = sqlite3_open_v2("srvl.db", &db, 
+    int rc = sqlite3_open_v2(full_path, &db, 
                              SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
     if (rc != SQLITE_OK)
     {
@@ -369,6 +410,10 @@ int db_connect()
         sqlite3_close(db);
         return 0;
     }
+
+	free(full_path);
+	free(srvl_path);
+	
     //Create a table if it doesnt exist:
     char *err_msg = 0;
     char *query = sqlite3_mprintf("CREATE TABLE IF NOT EXISTS `srvl` ("
@@ -391,6 +436,7 @@ int db_connect()
     return 1;
 }
 
+
 /*
  * Close connection if db is not null
  * ---------------------------------------------------------------------------
@@ -400,6 +446,7 @@ int db_close()
     if( db != NULL )
         sqlite3_close(db);
 }
+
 
 /*
  * =========================================================================== 
